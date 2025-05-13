@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Журнал оценок</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --accent: #2563eb;
+      --accent-light: #e0eaff;
+      --accent-dark: #1e40af;
+      --bg: #fff;
+      --bg-alt: #f6f8fa;
+      --text: #222;
+      --text-light: #888;
+      --shadow: 0 4px 24px rgba(37,99,235,0.07);
+      --radius: 16px;
+    }
+    body {
+      font-family: 'Montserrat', Arial, sans-serif;
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      transition: background 0.3s, color 0.3s;
+    }
+    body.dark {
+      --bg: #181a20;
+      --bg-alt: #23272f;
+      --text: #f3f4f6;
+      --text-light: #b4b4b4;
+      --accent: #3b82f6;
+      --accent-light: #24304a;
+      --accent-dark: #60a5fa;
+      background: var(--bg);
+      color: var(--text);
+    }     
+    .top-right {
+      position: fixed;
+      top: 18px;
+      right: 24px;
+      z-index: 1200;
+      display: flex;
+      gap: 12px;
+    }
+    .icon-btn {
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-size: 22px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+    .icon-btn:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+    body.dark .icon-btn {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+    }
+    /* Вход */
+    #auth-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+      transition: background 0.3s;
+    }
+    .auth-falling {
+      pointer-events: none;
+      position: absolute;
+      left: 0; top: 0; right: 0; bottom: 0;
+      z-index: 10;
+    }
+    .falling-grade {
+      position: absolute;
+      font-size: 2.2rem;
+      font-weight: 700;
+      color: var(--accent);
+      opacity: 0.7;
+      user-select: none;
+      text-shadow: 0 2px 16px var(--accent-light);
+      animation: fall 3.5s linear forwards;
+      will-change: transform, opacity;
+    }
+    @keyframes fall {
+      0% { transform: translateY(-60px) rotate(-30deg) scale(1); opacity: 0.7; }
+      80% { opacity: 1; }
+      100% { transform: translateY(100vh) rotate(30deg) scale(1.1); opacity: 0; }
+    }
+    .auth-box {
+      background: var(--bg);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 48px 40px 36px 40px;
+      min-width: 340px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      z-index: 20;
+      animation: fadeIn 0.7s cubic-bezier(.4,2,.6,1) 1;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(40px);} to { opacity: 1; transform: none; } }
+    .auth-box h2 { margin-bottom: 20px; color: var(--accent-dark); font-size: 2rem; }
+    .auth-box input {
+      width: 220px;
+      padding: 14px;
+      margin-bottom: 16px;
+      border-radius: 9px;
+      border: 1.5px solid #e5e7eb;
+      font-size: 1rem;
+      background: var(--bg-alt);
+      color: var(--text);
+      transition: border 0.2s;
+    }
+    .auth-box input:focus { border-color: var(--accent); outline: none; }
+    .auth-box button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 9px;
+      padding: 12px 32px;
+      font-size: 1rem;
+      font-weight: 700;
+      margin-top: 12px;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: background 0.2s;
+    }
+    .auth-box button:hover { background: var(--accent-dark);}
+    .auth-switch { margin-top: 18px; color: var(--text-light); font-size: 1rem;}
+    .auth-switch a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+    /* Основной макет */
+    #main-app { display: flex; min-height: 100vh; }
+    nav {
+      background: var(--accent-light);
+      width: 220px; min-width: 220px;
+      display: flex; flex-direction: column;
+      box-shadow: 2px 0 24px #e0eaff;
+      z-index: 1;
+      transition: background 0.3s;
+    }
+    body.dark nav { background: #23272f; }
+    nav .user-name {
+      font-weight: 700;
+      font-size: 1.2rem;
+      padding: 24px 20px;
+      border-bottom: 2px solid var(--accent);
+      color: var(--accent-dark);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      background: var(--bg);
+      transition: background 0.3s;
+    }
+    nav .tabs {
+      display: flex; flex-direction: column; flex-grow: 1;
+    }
+    nav .tab {
+      padding: 18px 24px;
+      color: var(--text-light);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1.1rem;
+      border-left: 4px solid transparent;
+      background: none;
+      border: none;
+      transition: background 0.2s, border-color 0.3s, color 0.3s;
+      text-align: left;
+      outline: none;
+    }
+    nav .tab:hover { background: var(--accent-light); color: var(--accent-dark);}
+    nav .tab.active {
+      background: var(--accent-light);
+      border-left-color: var(--accent);
+      color: var(--accent-dark);
+    }
+    .content {
+      flex-grow: 1;
+      background: var(--bg);
+      padding: 40px 48px;
+      overflow-y: auto;
+      border-radius: 0 0 0 var(--radius);
+      box-shadow: inset 2px 0 12px #e0eaff;
+      min-height: 100vh;
+      transition: background 0.3s;
+      animation: fadeIn 0.6s cubic-bezier(.4,2,.6,1) 1;
+    }
+    h2 { color: var(--accent-dark); font-size: 2rem; font-weight: 800; margin-bottom: 24px; letter-spacing: 0.5px;}
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    /* Загрузка файла */
+    #file-upload-row {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 22px;
+    }
+    #fileInput { display: none; }
+    #fileLabel {
+      cursor: pointer;
+      font-size: 28px;
+      color: var(--accent-dark);
+      border: 2px solid var(--accent-dark);
+      border-radius: 50%;
+      padding: 10px 14px;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.3s, color 0.3s;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+    }
+    #fileLabel:hover { background: var(--accent-dark); color: #fff; }
+    #loadFileBtn, #clearFileBtn {
+      padding: 10px 22px;
+      font-weight: 700;
+      font-size: 1rem;
+      border-radius: 10px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: background 0.2s;
+    }
+    #loadFileBtn:disabled { background: #e0eaff; color: #b0b8c9; cursor: default; }
+    #loadFileBtn:not(:disabled):hover, #clearFileBtn:hover { background: var(--accent-dark);}
+    #clearFileBtn { background: #e0eaff; color: var(--accent-dark);}
+    #clearFileBtn:hover { color: #fff; }
+    /* Таблицы */
+    table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      margin: 0 0 20px 0;
+      background: var(--bg);
+      animation: fadeIn 0.7s cubic-bezier(.4,2,.6,1) 1;
+    }
+    th, td {
+      padding: 14px 20px;
+      font-size: 1rem;
+      border-bottom: 1px solid #f1f5f9;
+      text-align: left;
+      transition: background 0.3s, color 0.3s;
+    }
+    th {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-weight: 700;
+    }
+    tr { transition: background 0.2s;}
+    tbody tr:hover { background: var(--accent-light);}
+    .action-btn {
+      background: none; border: none; color: var(--accent-dark);
+      font-size: 18px; cursor: pointer; margin: 0 4px;
+      transition: color 0.2s;
+    }
+    .action-btn:hover { color: var(--accent); }
+    #addStudentBtn {
+      background: var(--accent-dark); color: #fff;
+      border: none; border-radius: 12px;
+      padding: 12px 28px; font-weight: 700; font-size: 1rem;
+      margin-bottom: 22px;
+      box-shadow: var(--shadow);
+      transition: background 0.2s;
+    }
+    #addStudentBtn:hover { background: var(--accent); }
+    #studentModal {
+      position: fixed; inset: 0;
+      background: rgba(37,99,235,0.10);
+      display: none; align-items: center; justify-content: center;
+      z-index: 2000;
+    }
+    #studentModal.active { display: flex; }
+    #studentModal .modal-content {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 32px 36px 28px 36px;
+      width: 400px;
+      box-shadow: var(--shadow);
+      position: relative;
+      animation: fadeIn 0.5s cubic-bezier(.4,2,.6,1) 1;
+    }
+    #studentModal .modal-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+    }
+    #studentModal .modal-header h3 {
+      margin: 0; color: var(--accent-dark); font-weight: 700; font-size: 1.4rem;
+    }
+    #studentModal .close-modal {
+      background: none; border: none; font-size: 26px; color: var(--accent-dark);
+      cursor: pointer; font-weight: 700; line-height: 1;
+      transition: color 0.2s;
+    }
+    #studentModal .close-modal:hover { color: var(--accent);}
+    #studentModal input {
+      width: 100%; margin-bottom: 14px; padding: 12px 14px;
+      border-radius: 9px; border: 1.5px solid #e5e7eb;
+      font-size: 1rem; background: var(--bg-alt); color: var(--text);
+      transition: border-color 0.2s;
+    }
+    #studentModal input:focus { border-color: var(--accent);}
+    #studentModal button.save-btn {
+      width: 100%; padding: 14px; background: var(--accent);
+      color: #fff; font-weight: 700; font-size: 1.1rem;
+      border: none; border-radius: 12px; cursor: pointer;
+      box-shadow: var(--shadow); transition: background 0.2s;
+    }
+    #studentModal button.save-btn:hover { background: var(--accent-dark);}
+    #subjectSelector {
+      width: 100%; max-width: 320px;
+      font-size: 1rem; padding: 10px 14px;
+      border-radius: 12px; border: 1.5px solid #e5e7eb;
+      margin-bottom: 24px;
+      background: var(--bg-alt); color: var(--text);
+    }
+    @media (max-width: 900px) {
+      #main-app { flex-direction: column; }
+      nav { width: 100%; min-width: auto; flex-direction: row; overflow-x: auto;}
+      nav .user-name { padding: 12px 16px; border-bottom: none; border-right: 2px solid var(--accent); font-size: 1rem;}
+      nav .tabs { flex-direction: row; flex-grow: 0;}
+      nav .tab { border-left: none; border-right: 1px solid #e0eaff; padding: 12px 16px; font-size: 1rem;}
+      nav .tab:last-child { border-right: none;}
+      .content { padding: 18px 10px;}
+    }
+    @media (max-width: 480px) {
+      .content { padding: 10px 2vw;}
+      #studentModal .modal-content { width: 98vw; padding: 16px 6vw;}
+    }
+.photo {
+  float: left;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  border: 3px solid #222; /* тёмная рамка */
+  box-shadow:
+    0 0 10px 3px rgba(0, 0, 0, 0.8),       /* глубокая тень вокруг */
+    inset 0 0 15px 5px rgba(50, 50, 50, 0.7); /* внутреннее затемнение */
+  margin: 0 20px 20px 0;
+  object-fit: cover;
+  filter: grayscale(0.2) brightness(0.7); /* слегка приглушённые цвета */
+  transition: transform 0.4s ease, box-shadow 0.4s ease, filter 0.4s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.photo:hover {
+  transform: scale(1.1) rotate(-3deg);
+  border-color: #00bfff; /* яркий голубой акцент */
+  box-shadow:
+    0 0 20px 6px #00bfff,
+    inset 0 0 20px 8px #005f87;
+  filter: grayscale(0) brightness(1);
+}
+.theme-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.theme-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+/* Только для кнопки выхода - красный при наведении */
+.theme-btn:hover {
+  background: #e74c3c !important;
+  color: #fff !important;
+}
+#tab-4.tab-content {
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 30px 40px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #2c3e50;
+  font-size: 18px;
+  line-height: 1.6;
+}
+#tab-4.tab-content h2 {
+  font-size: 28px;
+  margin-bottom: 24px;
+  font-weight: 700;
+  color: #1a2a40;
+  display: flex;
+  align-items: center;
+}
+#tab-4.tab-content h3 {
+  font-size: 22px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-weight: 600;
+  color: #4a90e2;
+  display: flex;
+  align-items: center;
+}
+#tab-4.tab-content h3 i {
+  flex-shrink: 0;
+}
+#tab-4.tab-content p {
+  margin-bottom: 20px;
+  text-indent: 24px;
+  color: #34495e;
+}
+#tab-4.tab-content strong {
+  color: #2c3e50;
+}
+#tab-4.tab-content code {
+  background: #f1f1f1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 16px;
+}
+#saveCSVBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1a2a40; /* тёмно-синий текст */
+  background: linear-gradient(145deg, #e6ebff, #b3c0ff); /* светло-синий градиент */
+  border: none;
+  border-radius: 30px;
+  box-shadow:
+    6px 6px 10px #a1a9ff,
+    -6px -6px 10px #ffffff;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background 0.3s ease,
+    color 0.3s ease,
+    box-shadow 0.3s ease,
+    transform 0.2s ease;
+  white-space: nowrap;
+}
+#saveCSVBtn:hover {
+  background: linear-gradient(145deg, #4a6fff, #1a2a40); /* насыщенный синий градиент */
+  color: #f0f4ff; /* светлый текст */
+  box-shadow:
+    0 0 15px 5px rgba(74, 111, 255, 0.8),
+    inset 0 0 8px rgba(26, 42, 64, 0.8);
+  transform: scale(1.05);
+}
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 30px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 16px;
+  color: #2c3e50;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.styled-table thead tr {
+  background-color: #4a90e2;
+  color: #ffffff;
+  text-align: center;
+  font-weight: 700;
+}
+.styled-table th,
+.styled-table td {
+  padding: 12px 15px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+.styled-table tbody tr:nth-child(even) {
+  background-color: #f3f6fc;
+}
+.styled-table tbody tr:hover {
+  background-color: #d0e4ff;
+  cursor: pointer;
+}
+@media (max-width: 900px) {
+  #main-app { flex-direction: column; }
+  nav { width: 100%; min-width: auto; flex-direction: row; overflow-x: auto;}
+  nav .user-name { padding: 12px 16px; border-bottom: none; border-right: 2px solid var(--accent); font-size: 1rem;}
+  nav .tabs { flex-direction: row; flex-grow: 0;}
+  nav .tab { border-left: none; border-right: 1px solid #e0eaff; padding: 12px 16px; font-size: 1rem;}
+  nav .tab:last-child { border-right: none;}
+  .content { padding: 18px 10px;}
+}
+@media (max-width: 480px) {
+  .content { padding: 10px 2vw;}
+  #studentModal .modal-content { width: 98vw; padding: 16px 6vw;}
+}
+  </style>
+</head>
+<body>
+  <div class="top-right">
+     <button id="logoutBtn" class="theme-btn" title="Выход" aria-label="Выход">
+    &#x21aa; 
+  </button>
+    <button id="themeToggle" class="icon-btn" title="Светлая/тёмная тема" aria-label="Светлая/тёмная тема"><i class="fa-regular fa-moon"></i></button>
+    <button id="langToggle" class="icon-btn" title="Сменить язык" aria-label="Сменить язык"><i class="fa-solid fa-globe"></i></button>
+  </div>
+  <div id="auth-screen">
+    <div class="auth-falling"></div>
+    <div class="auth-box" id="auth-box">
+      <h2 id="auth-title">Вход</h2>
+      <input id="auth-login" type="text" placeholder="Логин" autocomplete="username" />
+      <input id="auth-password" type="password" placeholder="Пароль" autocomplete="current-password" />
+      <button id="authBtn">Войти</button>
+      <div class="auth-switch" id="auth-switch">
+        Нет аккаунта? <a id="switchToReg">Зарегистрироваться</a>
+      </div>
+    </div>
+  </div>
+  <!-- MAIN APP -->
+  <div id="main-app" style="display:none">
+    <nav>
+      <div class="user-name" id="nav-user-name"></div>
+      <div class="tabs">
+        <button class="tab active" onclick="showTab(0)">Загрузка</button>
+        <button class="tab" onclick="showTab(1)">Журнал</button>
+        <button class="tab" onclick="showTab(2)">Статистика (таблица)</button>
+        <button class="tab" onclick="showTab(3)">Статистика (графики)</button>
+        <button class="tab" onclick="showTab(4)">Помощь</button>
+        <button class="tab" onclick="showTab(5)">О программе</button>
+      </div>
+    </nav>
+    <main class="content">
+      <!-- Загрузка -->
+      <section id="tab-0" class="tab-content active">
+        <h2>Загрузка оценок из файла</h2>
+        <div id="file-upload-row">
+          <label id="fileLabel" for="fileInput" title="Выбрать файл"><i class="fa-solid fa-file-arrow-up"></i></label>
+          <input type="file" id="fileInput" accept=".csv,.txt,.xlsx" />
+          <button id="loadFileBtn" disabled>Загрузить</button>
+          <button id="clearFileBtn">Очистить</button>
+        </div>
+        <div id="uploadTable"></div>
+      </section>
+      <!-- Журнал -->
+      <section id="tab-1" class="tab-content">
+        <h2>Журнал оценок</h2>
+        <button id="addStudentBtn">Добавить ученика</button>
+        <div id="journalTable"></div>
+        <button id="saveCSVBtn" style="margin-top";>Сохранить в CSV</button>
+      </section>
+      <!-- Статистика таблица -->
+      <section id="tab-2" class="tab-content">
+        <h2>Статистика (таблица)</h2>
+        <div id="statTable"></div>
+      </section>
+
+
+
+
+<section id="tab-3" class="tab-content">
+  <h2>Статистика (графики)</h2>
+  <select id="subjectSelector" multiple size="5">
+    <option value="informatics" selected>Информатика</option>
+    <option value="physics" selected>Физика</option>
+    <option value="math" selected>Математика</option>
+    <option value="literature" selected>Литература</option>
+    <option value="music" selected>Музыка</option>
+  </select>
+  <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+    <canvas id="chart1" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+    <canvas id="chart2" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+    <canvas id="chart3" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+    <canvas id="chart4" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+    <canvas id="chart5" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+    <canvas id="chart6" width="320" height="160" style="background: var(--bg-alt); border-radius: var(--radius); box-shadow: var(--shadow);"></canvas>
+  </div>
+</section>
+
+
+
+
+      <section id="tab-4" class="tab-content">
+        <h2>Помощь</h2>
+        <ul>
+          <li><b>Загрузка:</b> Загрузите файл с оценками в формате <code>.csv</code>, <code>.txt</code> или <code>.xlsx</code>. В файле должны быть: <i>ФИО, Класс, Информатика, Физика, Математика, Литература, Музыка</i>.</li>
+          <li><b>Журнал:</b> После загрузки вы можете редактировать оценки, удалять учеников или добавлять новых. Все изменения сразу отражаются в статистике и графиках.</li>
+          <li><b>Добавить ученика:</b> Нажмите кнопку "Добавить ученика" и заполните данные. Для редактирования - нажмите на иконку карандаша рядом с учеником. Для удаления - на корзину.</li>
+          <li><b>Статистика:</b> Все графики и таблицы строятся по текущему журналу. Можно выбрать предметы для анализа.</li>
+          <li><b>Тёмная тема:</b> Включите тёмную тему кнопкой с луной/солнцем в правом верхнем углу.</li>
+          <li><b>Перевод:</b> Переключайте язык сайта кнопкой-глобусом.</li>
+        </ul>
+      </section>
+
+
+
+      <section id="tab-5" class="tab-content">
+        <h2>О программе</h2>
+        <img src="https://avatars.mds.yandex.net/i?id=ed0c5b4798eb1fb59cd945b04ac837e9_l-3826599-images-thumbs&n=13" alt="Фото разработчика" class="photo">
+        <p><b>Разработчик:</b> Кажикин Илья</p>
+        <p><b>Почта:</b> <a href="mailto:Kazhikin888@yandex.ru">Kazhikin888@yandex.ru</a></p>
+      </section>
+    </main>
+  </div>
+
+
+
+  <div id="studentModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modalTitle">Добавить ученика</h3>
+        <button class="close-modal" id="closeModalBtn" aria-label="Закрыть">&times;</button>
+      </div>
+      <input type="text" id="modalFio" placeholder="ФИО" />
+      <input type="text" id="modalClass" placeholder="Класс" />
+      <input type="number" id="modalInformatics" placeholder="Информатика" min="2" max="5" />
+      <input type="number" id="modalPhysics" placeholder="Физика" min="2" max="5" />
+      <input type="number" id="modalMath" placeholder="Математика" min="2" max="5" />
+      <input type="number" id="modalLiterature" placeholder="Литература" min="2" max="5" />
+      <input type="number" id="modalMusic" placeholder="Музыка" min="2" max="5" />
+      <button class="save-btn" id="saveStudentBtn">Сохранить</button>
+    </div>
+  </div>
+  <script>
+
+
+
+    document.getElementById('themeToggle').onclick = function() {
+      document.body.classList.toggle('dark');
+      this.innerHTML = document.body.classList.contains('dark')
+        ? '<i class="fa-regular fa-sun"></i>' : '<i class="fa-regular fa-moon"></i>';
+    };
+
+
+
+    let lang = 'ru';
+    function translate(lang) {
+      const tabNames = [
+        ['Загрузка','Журнал','Статистика (таблица)','Статистика (графики)','Помощь','О программе'],
+        ['Upload','Journal','Statistics (table)','Statistics (charts)','Help','About']
+      ];
+      document.querySelectorAll('nav .tab').forEach((tab,i)=>tab.textContent=tabNames[lang==='en'?1:0][i]);
+      document.getElementById('auth-title').textContent = lang==='en' ? 'Login' : 'Вход';
+      document.getElementById('auth-login').placeholder = lang==='en' ? 'Login' : 'Логин';
+      document.getElementById('auth-password').placeholder = lang==='en' ? 'Password' : 'Пароль';
+      document.getElementById('authBtn').textContent = lang==='en' ? 'Sign In' : 'Войти';
+      document.getElementById('auth-switch').innerHTML = lang==='en'
+        ? 'No account? <a id="switchToReg">Register</a>'
+        : 'Нет аккаунта? <a id="switchToReg">Зарегистрироваться</a>';
+      document.getElementById('tab-0').querySelector('h2').textContent = lang==='en' ? 'Upload grades from file' : 'Загрузка оценок из файла';
+      document.getElementById('fileLabel').title = lang==='en' ? 'Select file':'Выбрать файл';
+      document.getElementById('loadFileBtn').textContent = lang==='en' ? 'Load' : 'Загрузить';
+      document.getElementById('clearFileBtn').textContent = lang==='en' ? 'Clear' : 'Очистить';
+      document.getElementById('tab-1').querySelector('h2').textContent = lang==='en' ? 'Grade Journal' : 'Журнал оценок';
+      document.getElementById('addStudentBtn').textContent = lang==='en' ? 'Add Student':'Добавить ученика';
+      document.getElementById('saveCSVBtn').textContent = lang==='en' ? 'Save to CSV':'Сохранить в CSV';
+      document.getElementById('tab-2').querySelector('h2').textContent = lang==='en' ? 'Statistics (table)':'Статистика (таблица)';
+      document.getElementById('tab-3').querySelector('h2').textContent = lang==='en' ? 'Statistics (charts)':'Статистика (графики)';
+      document.getElementById('modalTitle').textContent = lang==='en' ? 'Add Student':'Добавить ученика';
+      document.getElementById('modalFio').placeholder = lang==='en' ? 'Name':'ФИО';
+      document.getElementById('modalClass').placeholder = lang==='en' ? 'Class':'Класс';
+      document.getElementById('modalInformatics').placeholder = lang==='en' ? 'Informatics':'Информатика';
+      document.getElementById('modalPhysics').placeholder = lang==='en' ? 'Physics':'Физика';
+      document.getElementById('modalMath').placeholder = lang==='en' ? 'Mathematics':'Математика';
+      document.getElementById('modalLiterature').placeholder = lang==='en' ? 'Literature':'Литература';
+      document.getElementById('modalMusic').placeholder = lang==='en' ? 'Music':'Музыка';
+      document.getElementById('saveStudentBtn').textContent = lang==='en' ? 'Save':'Сохранить';
+
+
+
+      const subj = ['Информатика','Физика','Математика','Литература','Музыка'];
+      const subjEn = ['Informatics','Physics','Mathematics','Literature','Music'];
+      document.querySelectorAll('#subjectSelector option').forEach((opt,i)=>{
+        opt.textContent = lang==='en' ? subjEn[i] : subj[i];
+      });
+      document.getElementById('tab-4').querySelector('h2').textContent = lang==='en' ? 'Help':'Помощь';
+      document.getElementById('tab-5').querySelector('h2').textContent = lang==='en' ? 'About':'О программе';
+      document.getElementById('tab-5').querySelectorAll('p')[0].innerHTML = lang==='en'
+        ? "<b>Developer:</b> Kazhikin Ilya"
+        : "<b>Разработчик:</b> Кажикин Илья";
+      document.getElementById('tab-5').querySelectorAll('p')[1].innerHTML = lang==='en'
+        ? "<b>Email:</b> <a href='mailto:Kazhikin888@yandex.ru'>Kazhikin888@yandex.ru</a>"
+        : "<b>Почта:</b> <a href='mailto:Kazhikin888@yandex.ru'>Kazhikin888@yandex.ru</a>";
+      document.getElementById('tab-5').querySelectorAll('p')[2].textContent = lang==='en'
+        ? "Minimalist teacher's gradebook. Version 1.0"
+        : "Минималистичный журнал для учителей. Версия 1.0";
+      document.getElementById('tab-5').querySelectorAll('p')[3].textContent = "© 2025";
+    }
+    document.getElementById('langToggle').onclick = function() {
+      lang = (lang === 'ru') ? 'en' : 'ru';
+      translate(lang);
+    };
+
+
+
+    const fallingContainer = document.querySelector('.auth-falling');
+    function createFallingDigit() {
+      if(document.getElementById('auth-screen').style.display === 'none') return;
+      const digit = document.createElement('div');
+      digit.className = 'falling-grade';
+      digit.textContent = ['2','3','4','5'][Math.floor(Math.random() * 4)];
+      digit.style.left = Math.random() * 100 + 'vw';
+      digit.style.top = '-40px';
+      digit.style.fontSize = (28 + Math.random() * 18) + 'px';
+      fallingContainer.appendChild(digit);
+      setTimeout(() => digit.remove(), 3500);
+    }
+    setInterval(createFallingDigit, 200);
+
+
+
+    function showTab(index) {
+      document.querySelectorAll('.tab-content').forEach((tab, i) => tab.classList.toggle('active', i === index));
+      document.querySelectorAll('nav .tab').forEach((tab, i) => tab.classList.toggle('active', i === index));
+      if(index === 3) updateCharts();
+      if(index === 2) renderStatTable();
+    }
+
+
+
+    document.getElementById('authBtn').onclick = function() {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('main-app').style.display = 'flex';
+      document.getElementById('nav-user-name').textContent = document.getElementById('auth-login').value || (lang==='en'?'User':'Пользователь');
+      renderJournalTable();
+      renderStatTable();
+      updateCharts();
+    };
+
+
+
+
+    let students = [];
+    let loadedFileData = null;
+    document.getElementById('fileInput').addEventListener('change', function() {
+      document.getElementById('loadFileBtn').disabled = !this.files.length;
+    });
+    document.getElementById('loadFileBtn').onclick = function() {
+      const fileInput = document.getElementById('fileInput');
+      if (!fileInput.files.length) return;
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        let data;
+        if (file.name.endsWith('.xlsx')) {
+          const workbook = XLSX.read(e.target.result, {type: 'binary'});
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          data = XLSX.utils.sheet_to_json(sheet, {defval: ''});
+        } else {
+          data = parseCSV(e.target.result);
+        }
+
+
+
+        students = data.map(row => ({
+          fio: row['ФИО'] || row['Name'] || '',
+          class: row['Класс'] || row['Class'] || '',
+          informatics: parseInt(row['Информатика'] || row['Informatics']) || null,
+          physics: parseInt(row['Физика'] || row['Physics']) || null,
+          math: parseInt(row['Математика'] || row['Mathematics']) || null,
+          literature: parseInt(row['Литература'] || row['Literature']) || null,
+          music: parseInt(row['Музыка'] || row['Music']) || null,
+        }));
+        renderUploadTable();
+        renderJournalTable();
+        renderStatTable();
+        updateCharts();
+      };
+      if (file.name.endsWith('.xlsx')) reader.readAsBinaryString(file);
+      else reader.readAsText(file);
+    };
+    document.getElementById('clearFileBtn').onclick = function() {
+      loadedFileData = null;
+      document.getElementById('uploadTable').innerHTML = '';
+      document.getElementById('fileInput').value = '';
+      document.getElementById('loadFileBtn').disabled = true;
+      students = [];
+      renderJournalTable();
+      renderStatTable();
+      updateCharts();
+    };
+    function parseCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (!lines.length) return [];
+      const headers = lines[0].split(/[,;]/).map(h => h.trim());
+      return lines.slice(1).map(line => {
+        const parts = line.split(/[,;]/);
+        const obj = {};
+        headers.forEach((h, i) => obj[h] = parts[i] ? parts[i].trim() : '');
+        return obj;
+      });
+    }
+    function renderUploadTable() {
+      const c = document.getElementById('uploadTable');
+      if (!students.length) { c.innerHTML = '<p>Нет данных</p>'; return; }
+      let html = '<table><thead><tr>';
+      html += '<th>ФИО</th><th>Класс</th><th>Информатика</th><th>Физика</th><th>Математика</th><th>Литература</th><th>Музыка</th>';
+      html += '</tr></thead><tbody>';
+      students.forEach(row => {
+        html += '<tr>';
+        html += `<td>${row.fio}</td><td>${row.class}</td><td>${row.informatics??''}</td><td>${row.physics??''}</td><td>${row.math??''}</td><td>${row.literature??''}</td><td>${row.music??''}</td>`;
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      c.innerHTML = html;
+    }
+
+
+
+    let editIndex = null;
+    document.getElementById('addStudentBtn').onclick = function() {
+      openStudentModal();
+    };
+    function openStudentModal(student = null) {
+      document.getElementById('studentModal').classList.add('active');
+      document.getElementById('modalFio').value = student ? student.fio : '';
+      document.getElementById('modalClass').value = student ? student.class : '';
+      document.getElementById('modalInformatics').value = student ? student.informatics ?? '' : '';
+      document.getElementById('modalPhysics').value = student ? student.physics ?? '' : '';
+      document.getElementById('modalMath').value = student ? student.math ?? '' : '';
+      document.getElementById('modalLiterature').value = student ? student.literature ?? '' : '';
+      document.getElementById('modalMusic').value = student ? student.music ?? '' : '';
+      document.getElementById('studentModal').dataset.editIndex = student ? students.indexOf(student) : -1;
+    }
+    document.getElementById('closeModalBtn').onclick = function() {
+      document.getElementById('studentModal').classList.remove('active');
+    };
+    document.getElementById('saveStudentBtn').onclick = function() {
+      const fio = document.getElementById('modalFio').value.trim();
+      const cls = document.getElementById('modalClass').value.trim();
+      if(!fio || !cls) { alert(lang==='en'?'Please fill Name and Class':'Пожалуйста, заполните ФИО и Класс'); return; }
+      const studentData = {
+        fio, class: cls,
+        informatics: parseInt(document.getElementById('modalInformatics').value)||null,
+        physics: parseInt(document.getElementById('modalPhysics').value)||null,
+        math: parseInt(document.getElementById('modalMath').value)||null,
+        literature: parseInt(document.getElementById('modalLiterature').value)||null,
+        music: parseInt(document.getElementById('modalMusic').value)||null,
+      };
+      const editIndex = parseInt(document.getElementById('studentModal').dataset.editIndex);
+      if(editIndex >= 0) students[editIndex] = studentData;
+      else students.push(studentData);
+      document.getElementById('studentModal').classList.remove('active');
+      renderJournalTable(); renderStatTable(); updateCharts();
+    };
+    function renderJournalTable() {
+      const c = document.getElementById('journalTable');
+      if (!students.length) { c.innerHTML = '<p>Журнал пуст</p>'; return; }
+      let html = '<table><thead><tr><th>ФИО</th><th>Класс</th><th>Информатика</th><th>Физика</th><th>Математика</th><th>Литература</th><th>Музыка</th><th></th></tr></thead><tbody>';
+      students.forEach((s,i)=>{
+        html += `<tr>
+          <td contenteditable="true" onblur="updateCell(${i},'fio',this.textContent)">${s.fio}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'class',this.textContent)">${s.class}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'informatics',this.textContent)">${s.informatics??''}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'physics',this.textContent)">${s.physics??''}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'math',this.textContent)">${s.math??''}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'literature',this.textContent)">${s.literature??''}</td>
+          <td contenteditable="true" onblur="updateCell(${i},'music',this.textContent)">${s.music??''}</td>
+          <td>
+            <button class="action-btn" title="Редактировать" onclick="editStudent(${i})"><i class="fa-solid fa-pen"></i></button>
+            <button class="action-btn" title="Удалить" onclick="deleteStudent(${i})"><i class="fa-solid fa-trash"></i></button>
+          </td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+      c.innerHTML = html;
+    }
+    window.updateCell = function(i, field, value) {
+      if(['informatics','physics','math','literature','music'].includes(field))
+        students[i][field] = value ? parseInt(value) : null;
+      else
+        students[i][field] = value;
+      renderStatTable(); updateCharts();
+    }
+    window.editStudent = function(i) { openStudentModal(students[i]); }
+    window.deleteStudent = function(i) {
+      if(confirm(lang==='en'?'Delete record?':'Удалить запись?')) {
+        students.splice(i,1);
+        renderJournalTable(); renderStatTable(); updateCharts();
+      }
+    }
+    document.getElementById('saveCSVBtn').onclick = function() {
+      if (!students.length) { alert(lang==='en'?'Journal is empty':'Журнал пуст'); return; }
+      const headers = ['ФИО','Класс','Информатика','Физика','Математика','Литература','Музыка'];
+      const rows = students.map(s=>[s.fio,s.class,s.informatics??'',s.physics??'',s.math??'',s.literature??'',s.music??'']);
+      let csv = headers.join(';')+'\n';
+      rows.forEach(r=>csv+=r.join(';')+'\n');
+      const blob = new Blob([csv],{type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'journal.csv';
+      a.click();
+    };
+
+
+
+
+    function renderStatTable() {
+      const c = document.getElementById('statTable');
+      if (!students.length) { c.innerHTML = '<p>Нет данных</p>'; return; }
+      const classes = [...new Set(students.map(s=>s.class))].sort();
+      const subjects = ['informatics','physics','math','literature','music'];
+      let html = '<table><thead><tr><th>Класс</th>';
+      subjects.forEach(s=>html+=`<th>Средняя ${s}</th><th>Медиана ${s}</th><th>5</th><th>4</th><th>3</th><th>2</th>`);
+      html+='</tr></thead><tbody>';
+      classes.forEach(cls=>{
+        html+=`<tr><td>${cls}</td>`;
+        subjects.forEach(subj=>{
+          const grades = students.filter(s=>s.class===cls&&s[subj]!=null).map(s=>s[subj]);
+          const avg = grades.length ? (grades.reduce((a,b)=>a+b,0)/grades.length).toFixed(2) : '-';
+          const med = grades.length ? median(grades) : '-';
+          const count5=grades.filter(g=>g===5).length, count4=grades.filter(g=>g===4).length, count3=grades.filter(g=>g===3).length, count2=grades.filter(g=>g===2).length;
+          html+=`<td>${avg}</td><td>${med}</td><td>${count5}</td><td>${count4}</td><td>${count3}</td><td>${count2}</td>`;
+        });
+        html+='</tr>';
+      });
+      html+='</tbody></table>';
+      c.innerHTML = html;
+    }
+    function median(arr){
+      const s=[...arr].sort((a,b)=>a-b),m=Math.floor(s.length/2);
+      return s.length%2?(s[m]).toFixed(2):((s[m-1]+s[m])/2).toFixed(2);
+    }
+
+
+
+
+
+let statCharts = [];
+
+function destroyStatCharts() {
+  statCharts.forEach(chart => chart && chart.destroy());
+  statCharts = [];
+}
+
+function getSubjectColumnsIndices(headers, subject) {
+
+  const avgCol = headers.findIndex(h => h.toLowerCase() === ('средняя ' + subject).toLowerCase());
+
+  const medianCol = headers.findIndex(h => h.toLowerCase() === ('медиана ' + subject).toLowerCase());
+
+  const startGradesCol = medianCol + 1;
+
+  return {
+    avgCol,
+    grade5Col: startGradesCol,
+    grade4Col: startGradesCol + 1,
+    grade3Col: startGradesCol + 2,
+    grade2Col: startGradesCol + 3,
+  };
+}
+
+function getDataForSubject(table, subject) {
+  const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.textContent.trim());
+  const { avgCol, grade5Col, grade4Col, grade3Col, grade2Col } = getSubjectColumnsIndices(headers, subject);
+
+  const rows = Array.from(table.querySelectorAll('tbody tr'));
+  const labels = rows.map(row => row.querySelector('td').textContent.trim()); // Классы
+
+  const data5 = rows.map(row => {
+    const val = row.querySelectorAll('td')[grade5Col]?.textContent.trim().replace(',', '.') || null;
+    return val === null || val === '' ? null : +val;
+  });
+  const data4 = rows.map(row => {
+    const val = row.querySelectorAll('td')[grade4Col]?.textContent.trim().replace(',', '.') || null;
+    return val === null || val === '' ? null : +val;
+  });
+  const data3 = rows.map(row => {
+    const val = row.querySelectorAll('td')[grade3Col]?.textContent.trim().replace(',', '.') || null;
+    return val === null || val === '' ? null : +val;
+  });
+  const data2 = rows.map(row => {
+    const val = row.querySelectorAll('td')[grade2Col]?.textContent.trim().replace(',', '.') || null;
+    return val === null || val === '' ? null : +val;
+  });
+  const dataAvg = rows.map(row => {
+    const val = row.querySelectorAll('td')[avgCol]?.textContent.trim().replace(',', '.') || null;
+    return val === null || val === '' ? null : +val;
+  });
+
+  return { labels, data5, data4, data3, data2, dataAvg };
+}
+
+function createChart(canvasId, chartType, labels, data, labelName) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
+    type: chartType,
+    data: {
+      labels,
+      datasets: [{
+        label: labelName,
+        data,
+        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+        borderColor: 'rgba(54, 162, 235, 1)',
+        borderWidth: 2,
+        fill: chartType === 'line' ? false : true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 5,
+        }
+      },
+      plugins: {
+        legend: { display: true }
+      }
+    }
+  });
+}
+
+function updateChartsForSelectedSubject() {
+  destroyStatCharts();
+
+  const table = document.querySelector('#statTable table');
+  if (!table) return;
+
+  const select = document.getElementById('subjectSelector');
+  const selected = select.value || select.selectedOptions[0]?.value;
+  if (!selected) return;
+
+  const { labels, data5, data4, data3, data2, dataAvg } = getDataForSubject(table, selected);
+
+  statCharts.push(createChart('chart1', 'bar', labels, data5, `${selected} - Оценка 5`));
+  statCharts.push(createChart('chart2', 'bar', labels, data4, `${selected} - Оценка 4`));
+  statCharts.push(createChart('chart3', 'bar', labels, data3, `${selected} - Оценка 3`));
+  statCharts.push(createChart('chart4', 'bar', labels, data2, `${selected} - Оценка 2`));
+  statCharts.push(createChart('chart5', 'line', labels, dataAvg, `${selected} - Средняя`));
+}
+
+document.getElementById('subjectSelector').addEventListener('change', updateChartsForSelectedSubject);
+window.addEventListener('load', updateChartsForSelectedSubject);
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+  window.location.href = 'index.html';
+});
+
+
+
+ document.getElementById('csvFileInput').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      const rows = text.split(/\r\n|\n/);
+      const table = document.createElement('table');
+      table.style.borderCollapse = 'collapse';
+      table.style.width = '100%';
+
+      rows.forEach((row, i) => {
+        const tr = document.createElement('tr');
+        const cells = row.split(',');
+
+        cells.forEach(cell => {
+          const cellElement = i === 0 ? document.createElement('th') : document.createElement('td');
+          cellElement.textContent = cell.trim();
+          cellElement.style.border = '1px solid #ccc';
+          cellElement.style.padding = '8px';
+          tr.appendChild(cellElement);
+        });
+
+        table.appendChild(tr);
+      });
+
+      const output = document.getElementById('csvOutput');
+      output.innerHTML = '';
+      output.appendChild(table);
+    };
+
+    reader.readAsText(file);
+  });
+
+  </script>
+</body>
+</html>
